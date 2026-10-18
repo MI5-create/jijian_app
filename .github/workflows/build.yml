@@ -1,56 +1,55 @@
-name: Build APK
+name: Build APK Safely
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      # 1. 解压你上传的压缩包
-      - name: Extract ZIP
-        run: |
-          if [ -f flutter_app.zip ]; then
-            unzip flutter_app.zip
-            if [ -d "flutter_app" ]; then
-              cp -r flutter_app/* .
-              cp -r flutter_app/.[!.]* . 2>/dev/null || true
-              rm -rf flutter_app
-            fi
-            rm flutter_app.zip
-          fi
 
-      # 2. 强制修复 Gradle 下载地址（用官方海外源，光速下载）
-      - name: Fix Gradle Wrapper
-        run: |
-          cd android
-          sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.5-all.zip|' gradle/wrapper/gradle-wrapper.properties
-          cd ..
-          
-      # 3. 配置 Java 17（最稳定的版本）
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # 4. 配置 Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      # 5. 开始打包
-      - name: Build APK
+      - name: Rebuild Standard Environment and Build
         run: |
+          # 1. 解压你上传的压缩包
+          if [ -f flutter_app.zip ]; then
+            unzip flutter_app.zip
+          fi
+          
+          # 2. 提取你写的心血（lib源码和依赖）
+          SRC_DIR="."
+          if [ -d "flutter_app/lib" ]; then SRC_DIR="flutter_app"; fi
+          
+          mkdir -p /tmp/my_lib
+          cp -r $SRC_DIR/lib/* /tmp/my_lib/
+          cp $SRC_DIR/pubspec.yaml /tmp/pubspec.yaml || true
+          
+          # 3. 核心大招：用官方命令生成绝对纯净的安卓外壳
+          flutter create clean_app --project-name jijian_app --platforms android
+          
+          # 4. 把你的源码装进新外壳里
+          cp -r /tmp/my_lib/* clean_app/lib/
+          cp /tmp/pubspec.yaml clean_app/ || true
+          
+          # 5. 开始真正的打包！
+          cd clean_app
           flutter pub get
           flutter build apk --release
-          
-      # 6. 打包成功后，把 APK 传上来
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: build/app/outputs/flutter-apk/*.apk
+          path: clean_app/build/app/outputs/flutter-apk/*.apk
