@@ -14,18 +14,22 @@ jobs:
           if [ -f flutter_app.zip ]; then
             unzip flutter_app.zip
             mv flutter_app/* . 2>/dev/null || true
-            mv flutter_app/.* . 2>/dev/null || true
             rm flutter_app.zip
           fi
 
-      - name: Safely fix pubspec.yaml SDK version
+      - name: Auto Fix Gradle & AGP Compatibility
         run: |
-          # 使用 Python 安全地只修改 environment 下的 sdk 版本要求
+          # 1. 自动升级 Gradle 版本到 8.14.0，满足 Flutter 最低要求
+          sed -i 's#gradle-8.5-all.zip#gradle-8.14.0-bin.zip#g' android/gradle/wrapper/gradle-wrapper.properties
+          
+          # 2. 为 AGP 9+ 添加兼容旧版 DSL 的配置，避免 "old DSL types will not be recognized" 报错
+          grep -q "android.newDsl=false" android/gradle.properties || echo "android.newDsl=false" >> android/gradle.properties
+
+          # 3. 安全地修复 pubspec.yaml 中错误的 SDK 版本要求
           python3 -c "
           import re
           with open('pubspec.yaml', 'r', encoding='utf-8') as f:
               content = f.read()
-          # 精准匹配 environment: 下方的 sdk 行
           content = re.sub(r'(environment:\s*\n\s*sdk:\s*)[^\n]+', r'\1\">=3.0.0 <4.0.0\"', content)
           with open('pubspec.yaml', 'w', encoding='utf-8') as f:
               f.write(content)
