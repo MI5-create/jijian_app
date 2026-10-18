@@ -8,55 +8,49 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Unzip project
+      
+      # 1. 解压你上传的压缩包
+      - name: Extract ZIP
         run: |
           if [ -f flutter_app.zip ]; then
             unzip flutter_app.zip
-            mv flutter_app/* . 2>/dev/null || true
+            if [ -d "flutter_app" ]; then
+              cp -r flutter_app/* .
+              cp -r flutter_app/.[!.]* . 2>/dev/null || true
+              rm -rf flutter_app
+            fi
             rm flutter_app.zip
           fi
 
-      - name: Auto Fix Gradle & AGP Compatibility
+      # 2. 强制修复 Gradle 下载地址（用官方海外源，光速下载）
+      - name: Fix Gradle Wrapper
         run: |
-          # 1. 自动升级 Gradle 版本到 8.14.0，满足 Flutter 最低要求
-          sed -i 's#gradle-8.5-all.zip#gradle-8.14.0-bin.zip#g' android/gradle/wrapper/gradle-wrapper.properties
+          cd android
+          sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.5-all.zip|' gradle/wrapper/gradle-wrapper.properties
+          cd ..
           
-          # 2. 为 AGP 9+ 添加兼容旧版 DSL 的配置，避免 "old DSL types will not be recognized" 报错
-          grep -q "android.newDsl=false" android/gradle.properties || echo "android.newDsl=false" >> android/gradle.properties
-
-          # 3. 安全地修复 pubspec.yaml 中错误的 SDK 版本要求
-          python3 -c "
-          import re
-          with open('pubspec.yaml', 'r', encoding='utf-8') as f:
-              content = f.read()
-          content = re.sub(r'(environment:\s*\n\s*sdk:\s*)[^\n]+', r'\1\">=3.0.0 <4.0.0\"', content)
-          with open('pubspec.yaml', 'w', encoding='utf-8') as f:
-              f.write(content)
-          "
-          echo "=== 修改后的 pubspec.yaml 环境配置 ==="
-          grep -A 2 "environment:" pubspec.yaml
-
+      # 3. 配置 Java 17（最稳定的版本）
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
-          java-version: '21'
+          java-version: '17'
 
+      # 4. 配置 Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: true
 
-      - name: Get dependencies
-        run: flutter pub get
-
+      # 5. 开始打包
       - name: Build APK
-        run: flutter build apk --release
-
+        run: |
+          flutter pub get
+          flutter build apk --release
+          
+      # 6. 打包成功后，把 APK 传上来
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/*.apk
