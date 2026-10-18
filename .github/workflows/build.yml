@@ -6,8 +6,8 @@ on:
 
 jobs:
   build:
-     permissions:
-       contents: write
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,10 +55,9 @@ jobs:
         with:
           name: release-apk
           path: clean_app/build/app/outputs/flutter-apk/*.apk
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: clean_app/build/app/outputs/flutter-apk/app-release.apk
           tag_name: v1.0.0
-          draft: false
-          prerelease: false
