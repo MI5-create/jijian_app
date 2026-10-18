@@ -9,34 +9,50 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Unzip if necessary
+      - name: Unzip project
         run: |
           if [ -f flutter_app.zip ]; then
             unzip flutter_app.zip
             mv flutter_app/* . 2>/dev/null || true
+            mv flutter_app/.* . 2>/dev/null || true
             rm flutter_app.zip
           fi
 
-      - name: Auto Fix Version Issues
+      - name: Safely fix pubspec.yaml SDK version
         run: |
-          # 自动修复 AI 写错的 Dart SDK 版本要求
-          sed -i 's/sdk: .*/sdk: ">=3.0.0 <4.0.0"/' pubspec.yaml
-          # 自动升级 Gradle 版本，防止 ApplicationExtension 报错
-          sed -i 's/gradle-8.5-all.zip/gradle-8.7-all.zip/g' android/gradle/wrapper/gradle-wrapper.properties
+          # 使用 Python 安全地只修改 environment 下的 sdk 版本要求
+          python3 -c "
+          import re
+          with open('pubspec.yaml', 'r', encoding='utf-8') as f:
+              content = f.read()
+          # 精准匹配 environment: 下方的 sdk 行
+          content = re.sub(r'(environment:\s*\n\s*sdk:\s*)[^\n]+', r'\1\">=3.0.0 <4.0.0\"', content)
+          with open('pubspec.yaml', 'w', encoding='utf-8') as f:
+              f.write(content)
+          "
+          echo "=== 修改后的 pubspec.yaml 环境配置 ==="
+          grep -A 2 "environment:" pubspec.yaml
 
-      - uses: actions/setup-java@v3
+      - name: Setup Java
+        uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
 
-      - run: flutter pub get
-      - run: flutter build apk --release
+      - name: Get dependencies
+        run: flutter pub get
 
-      - uses: actions/upload-artifact@v4
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
