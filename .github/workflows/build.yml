@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Unzip if necessary
         run: |
           if [ -f flutter_app.zip ]; then
@@ -17,15 +17,25 @@ jobs:
             rm flutter_app.zip
           fi
 
+      - name: Auto Fix Version Issues
+        run: |
+          # 自动修复 AI 写错的 Dart SDK 版本要求
+          sed -i 's/sdk: .*/sdk: ">=3.0.0 <4.0.0"/' pubspec.yaml
+          # 自动升级 Gradle 版本，防止 ApplicationExtension 报错
+          sed -i 's/gradle-8.5-all.zip/gradle-8.7-all.zip/g' android/gradle/wrapper/gradle-wrapper.properties
+
       - uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
+
       - uses: subosito/flutter-action@v2
         with:
-          channel: 'master'
+          channel: 'stable'
+
       - run: flutter pub get
       - run: flutter build apk --release
+
       - uses: actions/upload-artifact@v4
         with:
           name: release-apk
