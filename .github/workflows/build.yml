@@ -40,6 +40,7 @@ jobs:
           
           # 3. 核心大招：用官方命令生成绝对纯净的安卓外壳
           flutter create clean_app --project-name jijian_app --platforms android
+          sed -i 's/android:label="jijian_app"/android:label="机鉴"/g' clean_app/android/app/src/main/AndroidManifest.xml
           
           # 4. 把你的源码装进新外壳里
           cp -r /tmp/my_lib/* clean_app/lib/
